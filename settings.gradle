@@ -8,7 +8,12 @@ include ':core', ':ux', ':sceneform',
         ':sample-depth',
         ':sample-environment-lights',
         ':sample-image-texture',
-        ':sample-video-texture'
+        ':sample-video-texture',
+		':augmented-video',
+		':opencv-4.6.0-sdk',
+		':opencv-3.4.8-sdk',
+		':opencv-3.3.1-sdk',
+		':opencv-4.1.0-sdk'
 
 // Dirs
 project(':sample-3d-model-viewer').projectDir = new File('samples/3d-model-viewer')
@@ -20,3 +25,8 @@ project(':sample-depth').projectDir = new File(rootDir, 'samples/depth')
 project(':sample-environment-lights').projectDir = new File(rootDir, 'samples/environment-lights')
 project(':sample-image-texture').projectDir = new File('samples/image-texture')
 project(':sample-video-texture').projectDir = new File('samples/video-texture')
+project(':augmented-video').projectDir = new File('samples/augmented-video')
+project(':opencv-4.1.0-sdk').projectDir = new File(rootDir, 'externals/opencv-4.1.0-android-sdk/')
+project(':opencv-3.3.1-sdk').projectDir = new File(rootDir, 'externals/opencv-3.3.1-android-sdk/sdk/')
+project(':opencv-3.4.8-sdk').projectDir = new File(rootDir, 'externals/opencv-3.4.8-android-sdk/')
+project(':opencv-4.6.0-sdk').projectDir = new File(rootDir, 'externals/opencv-4.6.0-android-sdk/sdk/')

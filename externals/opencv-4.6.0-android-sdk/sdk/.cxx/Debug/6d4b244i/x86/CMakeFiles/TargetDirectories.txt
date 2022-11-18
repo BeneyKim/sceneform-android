@@ -1,0 +1,3 @@
+D:/WorkSpace/AndroidStudioProjects/StegaStampWithCamera/externals/opencv-4.6.0-android-sdk/sdk/.cxx/Debug/6d4b244i/x86/CMakeFiles/opencv_jni_shared.dir
+D:/WorkSpace/AndroidStudioProjects/StegaStampWithCamera/externals/opencv-4.6.0-android-sdk/sdk/.cxx/Debug/6d4b244i/x86/CMakeFiles/edit_cache.dir
+D:/WorkSpace/AndroidStudioProjects/StegaStampWithCamera/externals/opencv-4.6.0-android-sdk/sdk/.cxx/Debug/6d4b244i/x86/CMakeFiles/rebuild_cache.dir

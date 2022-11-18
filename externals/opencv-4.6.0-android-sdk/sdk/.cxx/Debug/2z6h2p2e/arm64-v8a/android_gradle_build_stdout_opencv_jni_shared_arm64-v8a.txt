@@ -1,0 +1,2 @@
+ninja: Entering directory `D:\Gits\sceneform-android\externals\opencv-4.6.0-android-sdk\sdk\.cxx\Debug\2z6h2p2e\arm64-v8a'
+ninja: no work to do.

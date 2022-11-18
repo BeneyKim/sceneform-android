@@ -53,6 +53,8 @@ public class MainActivity extends AppCompatActivity implements
     private ArFragment arFragment;
     private boolean matrixDetected = false;
     private boolean rabbitDetected = false;
+    private boolean math2Detected = false;
+    private boolean math4Detected = false;
     private AugmentedImageDatabase database;
     private Renderable plainVideoModel;
     private Material plainVideoMaterial;
@@ -111,9 +113,13 @@ public class MainActivity extends AppCompatActivity implements
 
         Bitmap matrixImage = BitmapFactory.decodeResource(getResources(), R.drawable.matrix);
         Bitmap rabbitImage = BitmapFactory.decodeResource(getResources(), R.drawable.rabbit);
+        Bitmap math2Image = BitmapFactory.decodeResource(getResources(), R.drawable.math2);
+        Bitmap math4Image = BitmapFactory.decodeResource(getResources(), R.drawable.math4);
         // Every image has to have its own unique String identifier
         database.addImage("matrix", matrixImage);
         database.addImage("rabbit", rabbitImage);
+        database.addImage("math2", math2Image);
+        database.addImage("math4", math4Image);
 
         config.setAugmentedImageDatabase(database);
 
@@ -193,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements
 
     public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
         // If there are both images already detected, for better CPU usage we do not need scan for them
-        if (matrixDetected && rabbitDetected) {
+        if (matrixDetected && rabbitDetected && math2Detected && math4Detected) {
             return;
         }
 
@@ -236,16 +242,19 @@ public class MainActivity extends AppCompatActivity implements
                 rabbitDetected = true;
                 Toast.makeText(this, "Rabbit tag detected", Toast.LENGTH_LONG).show();
 
-                anchorNode.setWorldScale(new Vector3(3.5f, 3.5f, 3.5f));
+                // anchorNode.setWorldScale(new Vector3(3.5f, 3.5f, 3.5f));
+                // anchorNode.setWorldScale(new Vector3(0.4f, 0.4f, 0.4f));
+                anchorNode.setWorldScale(new Vector3(0.03f, 0.03f, 0.03f)); // tyrannosaurus_rex
+                // anchorNode.setWorldScale(new Vector3(0.0003f, 0.0003f, 0.0003f)); // f18
                 arFragment.getArSceneView().getScene().addChild(anchorNode);
 
                 futures.add(ModelRenderable.builder()
-                        .setSource(this, Uri.parse("models/Rabbit.glb"))
+                        .setSource(this, Uri.parse("models/tyrannosaurus_rex.glb"))
                         .setIsFilamentGltf(true)
                         .build()
                         .thenAccept(rabbitModel -> {
                             TransformableNode modelNode = new TransformableNode(arFragment.getTransformationSystem());
-                            modelNode.setRenderable(rabbitModel);
+                            modelNode.setRenderable(rabbitModel).animate(true).start();
                             anchorNode.addChild(modelNode);
                         })
                         .exceptionally(
@@ -254,8 +263,60 @@ public class MainActivity extends AppCompatActivity implements
                                     return null;
                                 }));
             }
+
+            if (!math2Detected && augmentedImage.getName().equals("math2")) {
+                math2Detected = true;
+                Toast.makeText(this, "Math2 tag detected", Toast.LENGTH_LONG).show();
+
+                // anchorNode.setWorldScale(new Vector3(3.5f, 3.5f, 3.5f));
+                // anchorNode.setWorldScale(new Vector3(0.4f, 0.4f, 0.4f));
+                // anchorNode.setWorldScale(new Vector3(0.03f, 0.03f, 0.03f)); // tyrannosaurus_rex
+                anchorNode.setWorldScale(new Vector3(0.0001f, 0.0001f, 0.0001f)); // f18
+                arFragment.getArSceneView().getScene().addChild(anchorNode);
+
+                futures.add(ModelRenderable.builder()
+                        .setSource(this, Uri.parse("models/f18.glb"))
+                        .setIsFilamentGltf(true)
+                        .build()
+                        .thenAccept(rabbitModel -> {
+                            TransformableNode modelNode = new TransformableNode(arFragment.getTransformationSystem());
+                            modelNode.setRenderable(rabbitModel).animate(true).start();
+                            anchorNode.addChild(modelNode);
+                        })
+                        .exceptionally(
+                                throwable -> {
+                                    Toast.makeText(this, "Unable to load f18 model", Toast.LENGTH_LONG).show();
+                                    return null;
+                                }));
+            }
+
+            if (!math4Detected && augmentedImage.getName().equals("math4")) {
+                math4Detected = true;
+                Toast.makeText(this, "Math4 tag detected", Toast.LENGTH_LONG).show();
+
+                // anchorNode.setWorldScale(new Vector3(3.5f, 3.5f, 3.5f));
+                anchorNode.setWorldScale(new Vector3(0.2f, 0.2f, 0.2f));
+                // anchorNode.setWorldScale(new Vector3(0.03f, 0.03f, 0.03f)); // tyrannosaurus_rex
+                // anchorNode.setWorldScale(new Vector3(0.0003f, 0.0003f, 0.0003f)); // f18
+                arFragment.getArSceneView().getScene().addChild(anchorNode);
+
+                futures.add(ModelRenderable.builder()
+                        .setSource(this, Uri.parse("models/shiba.glb"))
+                        .setIsFilamentGltf(true)
+                        .build()
+                        .thenAccept(rabbitModel -> {
+                            TransformableNode modelNode = new TransformableNode(arFragment.getTransformationSystem());
+                            modelNode.setRenderable(rabbitModel).animate(true).start();
+                            anchorNode.addChild(modelNode);
+                        })
+                        .exceptionally(
+                                throwable -> {
+                                    Toast.makeText(this, "Unable to load shiba model", Toast.LENGTH_LONG).show();
+                                    return null;
+                                }));
+            }
         }
-        if (matrixDetected && rabbitDetected) {
+        if (matrixDetected && rabbitDetected && math2Detected && math4Detected) {
             arFragment.getInstructionsController().setEnabled(
                     InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
         }

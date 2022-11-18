@@ -1,0 +1,2 @@
+ninja: Entering directory `D:\WorkSpace\AndroidStudioProjects\StegaStampWithCamera\externals\opencv-4.6.0-android-sdk\sdk\.cxx\Debug\6g181h5s\x86'
+ninja: no work to do.

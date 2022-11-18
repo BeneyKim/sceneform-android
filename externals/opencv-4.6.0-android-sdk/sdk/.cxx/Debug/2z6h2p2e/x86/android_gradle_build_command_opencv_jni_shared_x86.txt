@@ -1,0 +1,7 @@
+Executable : C:\Users\user\AppData\Local\Android\Sdk\cmake\3.18.1\bin\ninja.exe
+arguments : 
+-C
+D:\Gits\sceneform-android\externals\opencv-4.6.0-android-sdk\sdk\.cxx\Debug\2z6h2p2e\x86
+opencv_jni_shared
+jvmArgs : 
+

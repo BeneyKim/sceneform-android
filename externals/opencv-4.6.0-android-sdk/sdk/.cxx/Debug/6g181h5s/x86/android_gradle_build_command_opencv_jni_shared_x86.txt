@@ -1,0 +1,7 @@
+Executable : C:\Users\user\AppData\Local\Android\Sdk\cmake\3.18.1\bin\ninja.exe
+arguments : 
+-C
+D:\WorkSpace\AndroidStudioProjects\StegaStampWithCamera\externals\opencv-4.6.0-android-sdk\sdk\.cxx\Debug\6g181h5s\x86
+opencv_jni_shared
+jvmArgs : 
+
