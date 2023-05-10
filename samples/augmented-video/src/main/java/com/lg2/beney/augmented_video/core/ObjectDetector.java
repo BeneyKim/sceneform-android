@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Environment;
 import android.util.Log;
 
+import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfFloat;
@@ -177,7 +178,7 @@ public class ObjectDetector {
         List<Rect2d> targetBoxes = detectObjects(inputFrame, frameIndex);
 
         // Step 3. initialize object tracker
-        if (targetBoxes.size() > 0) {
+        if (targetBoxes != null && targetBoxes.size() > 0) {
 
             mTracker = TrackerCSRT.create();
 
@@ -399,6 +400,10 @@ public class ObjectDetector {
                         " but confidence is lower than threshold, confidence =" + confidence);
             }
         }));
+
+        if (boxes.size() == 0) {
+            return null;
+        }
 
         return detectTargetObject(classIds, confidences, boxes, objConfidences, frameIndex);
     }

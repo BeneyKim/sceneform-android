@@ -316,7 +316,7 @@ public class EdgeDetector {
         for (MatOfPoint hull : hulls) {
 
             // Object Detection 에 의해서 찾아진 boundary를 벗어나는 ConvexHull은 버림
-            if (isIn(hull, objectBoundary)) {
+            if (!isIn(hull, objectBoundary)) {
                 //noinspection ConstantConditions
                 if (DRAW_DROPPED_CONVEX_HULLS) {
                     Imgproc.drawContours(frame, Collections.singletonList(hull), -1, DRAW_DROPPED_CONVEX_HULLS_COLOR, 2);

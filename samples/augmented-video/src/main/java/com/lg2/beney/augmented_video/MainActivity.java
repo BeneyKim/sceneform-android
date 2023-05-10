@@ -30,9 +30,11 @@ import com.google.ar.core.CameraConfigFilter;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.ImageFormat;
+import com.google.ar.core.Plane;
 import com.google.ar.core.Session;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
+import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.FrameTime;
 import com.google.ar.sceneform.Sceneform;
@@ -70,7 +72,9 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -108,7 +112,12 @@ public class MainActivity extends AppCompatActivity implements
     private ObjectDetector mObjectDetector = null;
     private EdgeDetector mEdgeDetector = null;
     private VideoHash mVideoHash = null;
+
     private ExecutorService mExecutorService;
+
+    private static final boolean USE_BACKGROUND_4_OBJECT_DETECTION = true;
+
+    private final DecimalFormat mFrameIndexDf = new DecimalFormat("00000000");
 
     static {
         if (!OpenCVLoader.initDebug()) {
@@ -151,7 +160,9 @@ public class MainActivity extends AppCompatActivity implements
         mEdgeDetector = new EdgeDetector(new IntermediateRecorder(this));
         mVideoHash = new VideoHash();
 
-        mExecutorService = Executors.newFixedThreadPool(4);
+        if (USE_BACKGROUND_4_OBJECT_DETECTION) {
+            mExecutorService = Executors.newFixedThreadPool(1);
+        }
     }
 
     @Override
@@ -243,50 +254,109 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-    private int frameIndex = 0;
+    private int frameIndex = -1;
 
     private void onUpdateFrame(FrameTime frameTime) {
 
         Frame frame = arFragment.getArSceneView().getArFrame();
-        Log.d(LOG_TAG, "onUpdateFrame: frame time(ms) = " + frameTime.getDeltaTime(TimeUnit.MICROSECONDS));
+
+        logv(frameIndex, "onUpdateFrame: frame time(ms) = " + frameTime.getDeltaTime(TimeUnit.MICROSECONDS));
 
         // If there is no frame or ARCore is not tracking yet, just return.
         if (frame == null || frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
             return;
         }
 
+        Collection<Plane> planes = frame.getUpdatedTrackables(Plane.class);
+        for (Plane plane : planes) {
+            // Find My Plane!
+        }
+
         // Copy the camera stream to a bitmap
-        boolean decode = (frameIndex++ % 30 == 0);
+
+        // TODO: NEED TO OPTIMIZE, HOW TO DECIDE FRAME_DECODE_RATE?
+        if (++frameIndex % 5 != 0) return;
+        boolean decode = (frameIndex % 30 == 0);
 
         try (Image image = frame.acquireCameraImage()) {
+
             if (image.getFormat() != ImageFormat.YUV_420_888) {
                 throw new IllegalArgumentException(
                         "Expected image in YUV_420_888 format, got format " + image.getFormat());
             }
 
-            Log.d(LOG_TAG, "onUpdateFrame: image size = (" + image.getWidth() + "x" + image.getHeight() +")");
+            logv(frameIndex, "onUpdateFrame: image size = (" + image.getWidth() + "x" + image.getHeight() + ")");
 
             Mat bgrMat = ImageUtils.imageToBgrMat(image);
 
-            Rect objectBoundary = mObjectDetector.run(bgrMat.clone(), frameIndex, decode);
-            Log.d(LOG_TAG, "onUpdateFrame: objectBoundary=" + objectBoundary);
+            if (USE_BACKGROUND_4_OBJECT_DETECTION) {
+                mExecutorService.execute(new ObjectDetectTask(bgrMat, frameIndex, decode));
 
-            if (!decode) return;
+            } else {
+                Rect objectBoundary = mObjectDetector.run(bgrMat.clone(), frameIndex, decode);
+                log(frameIndex, "onUpdateFrame: objectBoundary=" + objectBoundary);
 
-            Pair<Mat, List<MatOfPoint>> result = mEdgeDetector.contours(bgrMat, frameIndex, true);
-            // Mat cannyMat = result.first;
-            List<MatOfPoint> contours = result.second;
-            List<MatOfPoint> convexHulls = mEdgeDetector.convexHulls(bgrMat, contours, frameIndex, true);
-            mEdgeDetector.mergeHulls(bgrMat, convexHulls, objectBoundary, frameIndex, true);
+                if (decode) return;
 
-            Imgproc.drawContours(bgrMat,
-                    contours,
-                    -1, new Scalar(255, 0, 0), 10);
+                Pair<Mat, List<MatOfPoint>> result = mEdgeDetector.contours(bgrMat, frameIndex, true);
+                // Mat cannyMat = result.first;
+                List<MatOfPoint> contours = result.second;
+                List<MatOfPoint> convexHulls = mEdgeDetector.convexHulls(bgrMat, contours, frameIndex, true);
+                mEdgeDetector.mergeHulls(bgrMat, convexHulls, objectBoundary, frameIndex, true);
 
-            // ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(bgrMat));
+                Imgproc.drawContours(bgrMat,
+                        contours,
+                        -1, new Scalar(255, 0, 0), 10);
 
+                ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(bgrMat));
+            }
+        } catch (NotYetAvailableException notYetAvailableException) {
+            // Ignore NotYetAvailableException
         } catch (Exception e) {
-            Log.e(LOG_TAG, "Exception copying image", e);
+            loge("Exception copying image", e);
+        }
+    }
+
+    class ObjectDetectTask implements Runnable {
+
+        private final Mat mImage;
+        private final int mFrameIndex;
+        private final boolean mDecode;
+
+        ObjectDetectTask(Mat image, int frameIndex, boolean decode) {
+
+            mImage = image.clone();
+            mFrameIndex = frameIndex;
+            mDecode = decode;
+
+            log(mFrameIndex, "ObjectDetectTask: mDecode=" + mDecode);
+
+        }
+
+        @Override
+        public void run() {
+
+            try {
+                Rect objectBoundary = mObjectDetector.run(mImage.clone(), mFrameIndex, mDecode);
+                log(mFrameIndex, "ObjectDetectTask: objectBoundary=" + objectBoundary);
+
+                if (!mDecode) return;
+
+                Pair<Mat, List<MatOfPoint>> result = mEdgeDetector.contours(mImage, mFrameIndex, true);
+                // Mat cannyMat = result.first;
+                List<MatOfPoint> contours = result.second;
+                List<MatOfPoint> convexHulls = mEdgeDetector.convexHulls(mImage, contours, mFrameIndex, true);
+                mEdgeDetector.mergeHulls(mImage, convexHulls, objectBoundary, mFrameIndex, true);
+
+                Imgproc.drawContours(mImage,
+                        contours,
+                        -1, new Scalar(255, 0, 0), 10);
+
+                // ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(bgrMat));
+
+            } catch (Exception e) {
+                loge("Exception detect object", e);
+            }
         }
     }
 
@@ -485,5 +555,40 @@ public class MainActivity extends AppCompatActivity implements
             arFragment.getInstructionsController().setEnabled(
                     InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
         }
+    }
+
+    @SuppressWarnings("unused")
+    private void log(String message) {
+        Log.d(LOG_TAG, message);
+    }
+
+    @SuppressWarnings("unused")
+    private void log(int frameIndex, String message) {
+        Log.d(LOG_TAG,"[" + mFrameIndexDf.format(frameIndex) + "] " + message);
+    }
+
+    @SuppressWarnings("unused")
+    private void logv(String message) {
+        if (VDBG) {
+            Log.v(LOG_TAG, message);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private void logv(int frameIndex, String message) {
+        if (VDBG) {
+            DecimalFormat df = new DecimalFormat("000000");
+            Log.v(LOG_TAG, "[" + df.format(frameIndex) + "] " + message);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private void loge(String message) {
+        Log.e(LOG_TAG, message);
+    }
+
+    @SuppressWarnings("unused")
+    private void loge(String message, Throwable throwable) {
+        Log.e(LOG_TAG, message, throwable);
     }
 }
