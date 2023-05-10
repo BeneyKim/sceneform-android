@@ -10,6 +10,7 @@ include ':core', ':ux', ':sceneform',
         ':sample-image-texture',
         ':sample-video-texture',
 		':augmented-video',
+		':paper-sheet-detector',
 		':opencv-4.6.0-sdk',
 		':opencv-3.4.8-sdk',
 		':opencv-3.3.1-sdk',
@@ -30,3 +31,4 @@ project(':opencv-4.1.0-sdk').projectDir = new File(rootDir, 'externals/opencv-4.
 project(':opencv-3.3.1-sdk').projectDir = new File(rootDir, 'externals/opencv-3.3.1-android-sdk/sdk/')
 project(':opencv-3.4.8-sdk').projectDir = new File(rootDir, 'externals/opencv-3.4.8-android-sdk/')
 project(':opencv-4.6.0-sdk').projectDir = new File(rootDir, 'externals/opencv-4.6.0-android-sdk/sdk/')
+project(':paper-sheet-detector').projectDir = new File(rootDir, 'samples/paper-sheet-detector')
