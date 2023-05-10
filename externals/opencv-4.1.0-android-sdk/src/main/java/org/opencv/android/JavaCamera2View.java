@@ -88,6 +88,7 @@ public class JavaCamera2View extends CameraBridgeViewBase {
         CameraManager manager = (CameraManager) getContext().getSystemService(Context.CAMERA_SERVICE);
         try {
             String camList[] = manager.getCameraIdList();
+            Log.v(LOGTAG, "initializeCamera: camera Ids=" + Arrays.toString(camList));
             if (camList.length == 0) {
                 Log.e(LOGTAG, "Error: camera isn't detected.");
                 return false;
@@ -271,6 +272,12 @@ public class JavaCamera2View extends CameraBridgeViewBase {
             int bestWidth = 0, bestHeight = 0;
             float aspect = (float) width / height;
             android.util.Size[] sizes = map.getOutputSizes(ImageReader.class);
+            Arrays.sort(sizes, (i1, i2) -> {
+                if (i1.getWidth() == i2.getWidth()) {
+                    return i1.getHeight() - i2.getHeight();
+                }
+                return i1.getWidth() - i2.getWidth();
+            });
             bestWidth = sizes[0].getWidth();
             bestHeight = sizes[0].getHeight();
             for (android.util.Size sz : sizes) {
