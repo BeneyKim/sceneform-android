@@ -6,6 +6,7 @@ import android.media.Image;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.widget.Toast;
@@ -13,7 +14,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.util.Pair;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
@@ -52,17 +52,13 @@ import com.google.ar.sceneform.ux.InstructionsController;
 import com.google.ar.sceneform.ux.TransformableNode;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.lg2.beney.augmented_paper_detector.core.EdgeDetector;
-import com.lg2.beney.augmented_paper_detector.core.IntermediateRecorder;
-import com.lg2.beney.augmented_paper_detector.core.ObjectDetector;
-import com.lg2.beney.augmented_paper_detector.core.VideoHash;
+import com.lg2.beney.augmented_paper_detector.core.PaperEdgeDetector;
 import com.lg2.beney.augmented_paper_detector.utils.ImageUtils;
 import com.lg2.beney.augmented_paper_detector.utils.SnackbarHelper;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
-import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
@@ -108,10 +104,7 @@ public class MainActivity extends AppCompatActivity implements
     private final String AR_IMAGE_DATABASE_JSON_FILENAME = "ar_image_database.json";
 
     private List<ArImageSet> mArImageSet = null;
-
-    private ObjectDetector mObjectDetector = null;
-    private EdgeDetector mEdgeDetector = null;
-    private VideoHash mVideoHash = null;
+    private PaperEdgeDetector mEdgeDetector = null;
 
     private ExecutorService mExecutorService;
 
@@ -156,9 +149,7 @@ public class MainActivity extends AppCompatActivity implements
             loadMatrixMaterial();
         }
 
-        mObjectDetector = new ObjectDetector(this);
-        mEdgeDetector = new EdgeDetector(new IntermediateRecorder(this));
-        mVideoHash = new VideoHash();
+        mEdgeDetector = new PaperEdgeDetector(true);
 
         if (USE_BACKGROUND_4_OBJECT_DETECTION) {
             mExecutorService = Executors.newFixedThreadPool(1);
@@ -260,7 +251,7 @@ public class MainActivity extends AppCompatActivity implements
 
         Frame frame = arFragment.getArSceneView().getArFrame();
 
-        logv(frameIndex, "onUpdateFrame: frame time(ms) = " + frameTime.getDeltaTime(TimeUnit.MICROSECONDS));
+        log(frameIndex, "onUpdateFrame: frame time(ms) = " + frameTime.getDeltaTime(TimeUnit.MICROSECONDS));
 
         // If there is no frame or ARCore is not tracking yet, just return.
         if (frame == null || frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
@@ -287,29 +278,24 @@ public class MainActivity extends AppCompatActivity implements
 
             logv(frameIndex, "onUpdateFrame: image size = (" + image.getWidth() + "x" + image.getHeight() + ")");
 
-            Mat bgrMat = ImageUtils.imageToBgrMat(image);
+            Mat rgbMat = ImageUtils.imageToRgbMat(image);
 
-            if (USE_BACKGROUND_4_OBJECT_DETECTION) {
-                mExecutorService.execute(new ObjectDetectTask(bgrMat, frameIndex, decode));
+            final Mat debugMat = rgbMat.clone();
 
-            } else {
-                Rect objectBoundary = mObjectDetector.run(bgrMat.clone(), frameIndex, decode);
-                log(frameIndex, "onUpdateFrame: objectBoundary=" + objectBoundary);
+            final long ED_StartTime = SystemClock.uptimeMillis();
+            List<MatOfPoint> convexHulls = mEdgeDetector.getConvexHulls(rgbMat, debugMat);
+            List<MatOfPoint> mergedHulls = mEdgeDetector.mergeHulls(rgbMat, debugMat, convexHulls);
+            final long ED_ProcessingTimeMs = SystemClock.uptimeMillis() - ED_StartTime;
 
-                if (decode) return;
+            log(frameIndex, "[9toy] processImage(EDGE_DETECT): Done" +
+                    ", results=" + mergedHulls.size() + ", processingTime=" + ED_ProcessingTimeMs + " ms");
 
-                Pair<Mat, List<MatOfPoint>> result = mEdgeDetector.contours(bgrMat, frameIndex, true);
-                // Mat cannyMat = result.first;
-                List<MatOfPoint> contours = result.second;
-                List<MatOfPoint> convexHulls = mEdgeDetector.convexHulls(bgrMat, contours, frameIndex, true);
-                mEdgeDetector.mergeHulls(bgrMat, convexHulls, objectBoundary, frameIndex, true);
+            Imgproc.drawContours(rgbMat,
+                    mergedHulls,
+                    -1, new Scalar(255, 0, 0), 10);
 
-                Imgproc.drawContours(bgrMat,
-                        contours,
-                        -1, new Scalar(255, 0, 0), 10);
+            ImageUtils.SaveBitmapToFile(this, ImageUtils.imageRgbMatToBitmap(rgbMat));
 
-                ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(bgrMat));
-            }
         } catch (NotYetAvailableException notYetAvailableException) {
             // Ignore NotYetAvailableException
         } catch (Exception e) {
@@ -337,22 +323,25 @@ public class MainActivity extends AppCompatActivity implements
         public void run() {
 
             try {
-                Rect objectBoundary = mObjectDetector.run(mImage.clone(), mFrameIndex, mDecode);
-                log(mFrameIndex, "ObjectDetectTask: objectBoundary=" + objectBoundary);
 
                 if (!mDecode) return;
 
-                Pair<Mat, List<MatOfPoint>> result = mEdgeDetector.contours(mImage, mFrameIndex, true);
-                // Mat cannyMat = result.first;
-                List<MatOfPoint> contours = result.second;
-                List<MatOfPoint> convexHulls = mEdgeDetector.convexHulls(mImage, contours, mFrameIndex, true);
-                mEdgeDetector.mergeHulls(mImage, convexHulls, objectBoundary, mFrameIndex, true);
+                final Mat debugMat = mImage.clone();
+
+                final long ED_StartTime = SystemClock.uptimeMillis();
+                List<MatOfPoint> convexHulls = mEdgeDetector.getConvexHulls(mImage, debugMat);
+                List<MatOfPoint> mergedHulls = mEdgeDetector.mergeHulls(mImage, debugMat, convexHulls);
+                final long ED_ProcessingTimeMs = SystemClock.uptimeMillis() - ED_StartTime;
+
+                log(frameIndex, "[9toy] processImage(EDGE_DETECT): Done" +
+                        ", results=" + mergedHulls.size() + ", processingTime=" + ED_ProcessingTimeMs + " ms");
+
 
                 Imgproc.drawContours(mImage,
-                        contours,
+                        mergedHulls,
                         -1, new Scalar(255, 0, 0), 10);
 
-                // ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(bgrMat));
+                // ImageUtils.SaveBitmapToFile(this, ImageUtils.imageBgrMatToBitmap(mImage));
 
             } catch (Exception e) {
                 loge("Exception detect object", e);

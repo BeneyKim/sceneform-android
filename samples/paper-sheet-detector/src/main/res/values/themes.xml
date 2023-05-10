@@ -14,5 +14,11 @@
         <!-- Customize your theme here. -->
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+        <!-- 노티피케이션 부분 투명화 -->
+        <item name="android:windowTranslucentStatus">true</item>
+        <!-- 아래 3개 네비게이션 버튼 버튼의 투명화 -->
+        <item name="android:windowTranslucentNavigation">true</item>
+        <!-- 노치 부분까지 화면 표시 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>

@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.lg2.beney.augmented_paper_detector"
-        minSdk rootProject.ext.minSdk
+        minSdk 27 // rootProject.ext.minSdk (24)
         targetSdk rootProject.ext.targetSdk
         versionCode 1
         versionName "1.0.0"

@@ -251,12 +251,29 @@ public class ImageUtils {
         return bgrMat;
     }
 
+    public static Mat imageToRgbMat(Image image) {
+        Mat mYuvMat = imageToMat(image);
+
+        Mat rgbMat = new Mat(image.getHeight(), image.getWidth(), CvType.CV_8UC3);
+        Imgproc.cvtColor(mYuvMat, rgbMat, Imgproc.COLOR_YUV2RGB_I420);
+
+        return rgbMat;
+    }
+
     public static Bitmap imageBgrMatToBitmap(Mat bgrMat) {
 
         Mat rgbaMatOut = new Mat();
         Imgproc.cvtColor(bgrMat, rgbaMatOut, Imgproc.COLOR_BGR2RGBA, 0);
         final Bitmap bitmap = Bitmap.createBitmap(bgrMat.cols(), bgrMat.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(rgbaMatOut, bitmap);
+
+        return bitmap;
+    }
+
+    public static Bitmap imageRgbMatToBitmap(Mat rgbMat) {
+
+        final Bitmap bitmap = Bitmap.createBitmap(rgbMat.cols(), rgbMat.rows(), Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(rgbMat, bitmap);
 
         return bitmap;
     }
