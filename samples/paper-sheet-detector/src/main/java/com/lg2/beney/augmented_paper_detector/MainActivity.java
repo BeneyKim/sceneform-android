@@ -1,5 +1,6 @@
 package com.lg2.beney.augmented_paper_detector;
 
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.Image;
@@ -8,6 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
@@ -23,12 +25,14 @@ import androidx.fragment.app.FragmentOnAttachListener;
 import com.google.android.filament.Engine;
 import com.google.android.filament.filamat.MaterialBuilder;
 import com.google.android.filament.filamat.MaterialPackage;
+import com.google.ar.core.Anchor;
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.AugmentedImageDatabase;
 import com.google.ar.core.CameraConfig;
 import com.google.ar.core.CameraConfigFilter;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
+import com.google.ar.core.HitResult;
 import com.google.ar.core.ImageFormat;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Session;
@@ -36,7 +40,10 @@ import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.sceneform.ArSceneView;
 import com.google.ar.sceneform.FrameTime;
+import com.google.ar.sceneform.Node;
+import com.google.ar.sceneform.SceneView;
 import com.google.ar.sceneform.Sceneform;
 import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
@@ -46,12 +53,11 @@ import com.google.ar.sceneform.rendering.Material;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.rendering.Renderable;
 import com.google.ar.sceneform.rendering.RenderableInstance;
+import com.google.ar.sceneform.rendering.ViewRenderable;
 import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.BaseArFragment;
 import com.google.ar.sceneform.ux.InstructionsController;
 import com.google.ar.sceneform.ux.TransformableNode;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.lg2.beney.augmented_paper_detector.core.PaperEdgeDetector;
 import com.lg2.beney.augmented_paper_detector.utils.ImageUtils;
 import com.lg2.beney.augmented_paper_detector.utils.SnackbarHelper;
@@ -62,12 +68,9 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.reflect.Type;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -79,13 +82,18 @@ import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity implements
         FragmentOnAttachListener,
-        BaseArFragment.OnSessionConfigurationListener {
+        BaseArFragment.OnTapArPlaneListener,
+        BaseArFragment.OnSessionConfigurationListener,
+        ArFragment.OnViewCreatedListener{
 
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
     private static final boolean VDBG = false;
 
     private final List<CompletableFuture<Void>> futures = new ArrayList<>();
     private ArFragment arFragment;
+
+    private Renderable model;
+    private ViewRenderable viewRenderable;
     private boolean matrixDetected = false;
     private boolean rabbitDetected = false;
     private boolean math2Detected = false;
@@ -98,12 +106,7 @@ public class MainActivity extends AppCompatActivity implements
 
     private final SnackbarHelper snackbarHelper = new SnackbarHelper();
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final String AR_IMAGE_DATABASE_FILENAME = "ar_image_database.imgdb";
-    @SuppressWarnings("FieldCanBeLocal")
-    private final String AR_IMAGE_DATABASE_JSON_FILENAME = "ar_image_database.json";
-
-    private List<ArImageSet> mArImageSet = null;
+    private final static String AR_IMAGE_DATABASE_FILENAME = "ar_image_database.imgdb";
     private PaperEdgeDetector mEdgeDetector = null;
 
     private ExecutorService mExecutorService;
@@ -123,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
+
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, insets) -> {
@@ -132,6 +136,7 @@ public class MainActivity extends AppCompatActivity implements
 
             return WindowInsetsCompat.CONSUMED;
         });
+
         getSupportFragmentManager().addFragmentOnAttachListener(this);
 
         if (savedInstanceState == null) {
@@ -154,6 +159,8 @@ public class MainActivity extends AppCompatActivity implements
         if (USE_BACKGROUND_4_OBJECT_DETECTION) {
             mExecutorService = Executors.newFixedThreadPool(1);
         }
+
+        loadModels();
     }
 
     @Override
@@ -161,13 +168,27 @@ public class MainActivity extends AppCompatActivity implements
         if (fragment.getId() == R.id.arFragment) {
             arFragment = (ArFragment) fragment;
             arFragment.setOnSessionConfigurationListener(this);
+            arFragment.setOnViewCreatedListener(this);
+            arFragment.setOnTapArPlaneListener(this);
+            // arFragment.setOnTapPlaneGlbModel("https://storage.googleapis.com/ar-answers-in-search-models/static/Tiger/model.glb");
         }
     }
 
     @Override
     public void onSessionConfiguration(Session session, Config config) {
+
+        // TODO: HitTest
+        /*
+        if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
+            config.setDepthMode(Config.DepthMode.AUTOMATIC);
+        }
+
+        log("getPlaneFindingMode()" + config.getPlaneFindingMode());
+        */
+
+        // TODO: HitTest
         // Disable plane detection
-        config.setPlaneFindingMode(Config.PlaneFindingMode.DISABLED);
+        // config.setPlaneFindingMode(Config.PlaneFindingMode.DISABLED);
 
         // Camera Resolution Up
         try {
@@ -225,24 +246,74 @@ public class MainActivity extends AppCompatActivity implements
         // Check for image detection
         arFragment.setOnAugmentedImageUpdateListener(this::onAugmentedImageTrackingUpdate);
         arFragment.getArSceneView().getScene().addOnUpdateListener(this::onUpdateFrame);
+    }
 
-        try (InputStream is = getAssets().open(AR_IMAGE_DATABASE_JSON_FILENAME)) {
+    @Override
+    public void onViewCreated(ArSceneView arSceneView) {
+        arFragment.setOnViewCreatedListener(null);
 
-            StringBuilder sb = new StringBuilder();
-            BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-            String str;
-            while ((str = br.readLine()) != null) {
-                sb.append(str);
-            }
-            br.close();
+        // Fine adjust the maximum frame rate
+        arSceneView.setFrameRateFactor(SceneView.FrameRate.FULL);
+    }
 
-            Gson gson = new Gson();
+    public void loadModels() {
+        WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
+        ModelRenderable.builder()
+                .setSource(this, Uri.parse("https://storage.googleapis.com/ar-answers-in-search-models/static/Tiger/model.glb"))
+                .setIsFilamentGltf(true)
+                .setAsyncLoadEnabled(true)
+                .build()
+                .thenAccept(model -> {
+                    MainActivity activity = weakActivity.get();
+                    if (activity != null) {
+                        activity.model = model;
+                    }
+                })
+                .exceptionally(throwable -> {
+                    Toast.makeText(
+                            this, "Unable to load model", Toast.LENGTH_LONG).show();
+                    return null;
+                });
+        ViewRenderable.builder()
+                .setView(this, R.layout.view_model_title)
+                .build()
+                .thenAccept(viewRenderable -> {
+                    MainActivity activity = weakActivity.get();
+                    if (activity != null) {
+                        activity.viewRenderable = viewRenderable;
+                    }
+                })
+                .exceptionally(throwable -> {
+                    Toast.makeText(this, "Unable to load model", Toast.LENGTH_LONG).show();
+                    return null;
+                });
+    }
 
-            Type listType = new TypeToken<ArrayList<ArImageSet>>(){}.getType();
-            mArImageSet = gson.fromJson(sb.toString(), listType);
-
-        } catch (Exception ignored) {
+    @Override
+    public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
+        if (model == null || viewRenderable == null) {
+            Toast.makeText(this, "Loading...", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        // Create the Anchor.
+        Anchor anchor = hitResult.createAnchor();
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setParent(arFragment.getArSceneView().getScene());
+
+        // Create the transformable model and add it to the anchor.
+        TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
+        model.setParent(anchorNode);
+        model.setRenderable(this.model)
+                .animate(true).start();
+        model.select();
+
+        Node titleNode = new Node();
+        titleNode.setParent(model);
+        titleNode.setEnabled(false);
+        titleNode.setLocalPosition(new Vector3(0.0f, 1.0f, 0.0f));
+        titleNode.setRenderable(viewRenderable);
+        titleNode.setEnabled(true);
     }
 
     private int frameIndex = -1;
@@ -278,6 +349,8 @@ public class MainActivity extends AppCompatActivity implements
 
             logv(frameIndex, "onUpdateFrame: image size = (" + image.getWidth() + "x" + image.getHeight() + ")");
 
+            /*
+            // TODO: HitTest
             Mat rgbMat = ImageUtils.imageToRgbMat(image);
 
             final Mat debugMat = rgbMat.clone();
@@ -295,6 +368,7 @@ public class MainActivity extends AppCompatActivity implements
                     -1, new Scalar(255, 0, 0), 10);
 
             ImageUtils.SaveBitmapToFile(this, ImageUtils.imageRgbMatToBitmap(rgbMat));
+            */
 
         } catch (NotYetAvailableException notYetAvailableException) {
             // Ignore NotYetAvailableException
